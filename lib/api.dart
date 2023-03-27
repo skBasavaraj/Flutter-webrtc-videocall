@@ -4,8 +4,8 @@ import 'dart:convert';
 class Api {
   static const String apiUrl = "API_URL/LOCALHOST";
 
-  static sendNotificationRequestToFriendToAcceptCall( String roomId, User user) async {
-    print("000K"+user.firebaseToken);
+  static sendNotificationRequestToFriendToAcceptCall( String roomId,String name,String token  ) async {
+    print("000K /"+token);
      var headers = {
       'Content-Type': 'application/json',
       'Authorization': 'key=AAAA299MT_w:APA91bGci5tf-gBs2UI4OKADg7rfwdh3DNg34neJnlzei6PwgOhVqcPZWWe14bpUWDQFGLkdhc7dAJa7uUu1VJeY6cevW2hJ5Mbu9kB2W2dW3Tu9Z3y32gig2n8DZCB0Q637nGIxRGS0'
@@ -13,8 +13,8 @@ class Api {
     var request = http.Request('POST', Uri.parse('https://fcm.googleapis.com/fcm/send'));
     request.body = json.encode({
       "registration_ids": [
- "d600MGj1Q429tQktEUpx49:APA91bFCkY3bGX1IuNU5z6lkJ73Tih0Mgxssh39ggdV8PB3XXBcDNSTmpMNPbpd3bNQwcm5k5hbdaoDf1-ALKWZYm5uJkXiWiq_TWqnAbw8V-vPGYafo-aLi7vLBUlxCbolRuFrk2U7y"
-       ],
+        token
+        ],
       "notification": {
 
         "title": "webrtc",
@@ -22,13 +22,13 @@ class Api {
         "sound": true
       }
       ,"data":{
-        "uuid": user.uuid,
-        "caller_id": user.phoneNumber,
-        "caller_name": user.name,
+        "uuid": 1234,
+        "caller_id":  name+"23",
+        "caller_name": name,
         "caller_id_type": "number",
         "has_video": "false",
         "room_id": roomId,
-        "fcm_token": user.firebaseToken
+        "fcm_token":  token
       }
     });
     request.headers.addAll(headers);
@@ -47,6 +47,9 @@ class Api {
   }
 
 }
+const SHOW = 'SHOW';
+const TOKEN = 'TOKEN';
+const USER_NAME = 'USER_NAME';
 
 class User {
   static const String nameKey = "name";
