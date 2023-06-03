@@ -4,6 +4,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_callkit_incoming/entities/android_params.dart';
+import 'package:flutter_callkit_incoming/entities/call_kit_params.dart';
+import 'package:flutter_callkit_incoming/entities/ios_params.dart';
+import 'package:flutter_callkit_incoming/entities/notification_params.dart';
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:nb_utils/nb_utils.dart';
 import 'package:webrtc/receiveCall.dart';
@@ -11,44 +16,13 @@ import 'Signaling.dart';
 import 'api.dart';
 import 'package:awesome_notifications/awesome_notifications.dart';
 
+import 'app_router.dart';
 import 'callPage.dart';
+import 'navigation_service.dart';
 
-User user = User(
-    name: "Yash Makan",
-    email: "yashmakan.fake.email@gmail.com",
-    gender: "Male",
-    phoneNumber: "9999999999",
-    birthDate: 498456350,
-    username: "yashmakan",
-    password: "79aa7b81bcdd14fd98282b810b61312b",
-    firstName: "Yash",
-    lastName: "Makan",
-    title: "Full Stack Developer",
-    firebaseToken:
-        "d600MGj1Q429tQktEUpx49:APA91bFCkY3bGX1IuNU5z6lkJ73Tih0Mgxssh39ggdV8PB3XXBcDNSTmpMNPbpd3bNQwcm5k5hbdaoDf1-ALKWZYm5uJkXiWiq_TWqnAbw8V-vPGYafo-aLi7vLBUlxCbolRuFrk2U7y",
-    uuid: "",
-    picture:
-        "https://images.unsplash.com/photo-1453396450673-3fe83d2db2c4?ixlib=rb-1.2.1&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=387&q=80");
-
-User rick = User(
-    name: "Rick Rolland",
-    email: "rick.fake.email@gmail.com",
-    gender: "Male",
-    phoneNumber: "8888888888",
-    birthDate: 498456351,
-    username: "rickkk",
-    password: "79aa7b81bcdd14fd98282b810b61312a",
-    firstName: "Rick",
-    lastName: "Rolland",
-    title: "Web Developer",
-    firebaseToken:
-        "d600MGj1Q429tQktEUpx49:APA91bFCkY3bGX1IuNU5z6lkJ73Tih0Mgxssh39ggdV8PB3XXBcDNSTmpMNPbpd3bNQwcm5k5hbdaoDf1-ALKWZYm5uJkXiWiq_TWqnAbw8V-vPGYafo-aLi7vLBUlxCbolRuFrk2U7y",
-    uuid: "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
-    picture:
-        "https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2");
 late PackageInfoData packageInfo;
 
-late String initialRoute = "/";
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
@@ -79,13 +53,12 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      initialRoute: '/',
-      routes: {
-        // When navigating to the "/" route, build the FirstScreen widget.
-        '/': (context) => const MyHomePage(title: 'Flutter Demo Home Page'),
-        // When navigating to the "/second" route, build the SecondScreen widget.
-        '/second': (context) =>   Receive(),
-      },
+      onGenerateRoute: AppRoute.generateRoute,
+      initialRoute: AppRoute.homePage,
+      navigatorKey: NavigationService.instance.navigationKey,
+      navigatorObservers: <NavigatorObserver>[
+        NavigationService.instance.routeObserver
+      ],
 
     );
   }
@@ -101,7 +74,9 @@ class MyHomePage extends StatefulWidget {
 }
 
 
-class _MyHomePageState extends State<MyHomePage> {
+class _MyHomePageState extends State<MyHomePage> with WidgetsBindingObserver {
+  String? _currentUuid;
+
   TextEditingController textEditingController = TextEditingController(text: '');
   TextEditingController textEditingController2 =
       TextEditingController(text: '');
@@ -115,12 +90,17 @@ class _MyHomePageState extends State<MyHomePage> {
       deviceToken = token;
       print("token is $deviceToken");
     });
+    WidgetsBinding.instance.addObserver(this);
+
 
     super.initState();
+    checkAndNavigationCallingPage();
+
     FirebaseMessaging.onMessage.listen((event) {
       myBackgroundMessageHandler(event);
     });
-    AwesomeNotifications().actionStream.listen((event) {
+
+    /* AwesomeNotifications().actionStream.listen((event) {
       if (event.buttonKeyPressed.isNotEmpty) {
         print("join join1${event.buttonKeyPressed}");
           setValue(TOKEN, event.buttonKeyPressed);
@@ -133,14 +113,42 @@ class _MyHomePageState extends State<MyHomePage> {
 
         AwesomeNotifications().dismissAllNotifications();
       }
-    });
+    });*/
   }
 
   @override
   void dispose() {
     super.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+
+  }
+  getCurrentCall() async {
+    //check current call from pushkit if possible
+    var calls = await FlutterCallkitIncoming.activeCalls();
+    if (calls is List) {
+      if (calls.isNotEmpty) {
+        print('DATA: $calls');
+        _currentUuid = calls[0]['id'];
+        return calls[0];
+      } else {
+
+        return null;
+      }
+    }
   }
 
+  checkAndNavigationCallingPage() async {
+    var currentCall = await getCurrentCall();
+    if (currentCall != null) {
+ print(";;");
+      NavigationService.instance
+          .pushNamedIfNotCurrent(AppRoute.callingPage, args: currentCall);
+    }else{
+      print(";; fuck");
+      NavigationService.instance
+          .pushNamedIfNotCurrent(AppRoute.homePage, args: currentCall);
+    }
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -219,10 +227,11 @@ class _MyHomePageState extends State<MyHomePage> {
 
 Future<void> myBackgroundMessageHandler(RemoteMessage event) async {
   print("Background message/myBackgroundMessageHandler ${event.notification}");
+  showCallkitIncoming(event);
   // Map message = event.data.toMap();
   // print('backgroundMessage: message => ${message.toString()}');
   // var payload = message['notification'];
-  var item = jsonEncode(event.data);
+/*  var item = jsonEncode(event.data);
   var userDetail = jsonDecode(item);
 
   print('abc:' + item);
@@ -250,29 +259,58 @@ Future<void> myBackgroundMessageHandler(RemoteMessage event) async {
         // key: 'accept-$roomId',
       )
     ],
+  );*/
+}
+Future<void> showCallkitIncoming(RemoteMessage event) async {
+  var item = jsonEncode(event.data);
+  var userDetail = jsonDecode(item);
+
+  print('abc:' + item);
+  print('abc:' + userDetail['caller_name']);
+
+  final params = CallKitParams(
+    id:  userDetail['room_id'],
+    nameCaller: userDetail['caller_name'],
+    appName: 'Callkit',
+    avatar: 'https://i.pravatar.cc/100',
+    handle: '0123456789',
+    type: 0,
+    duration: 30000,
+    textAccept: 'Accept',
+    textDecline: 'Decline',
+    missedCallNotification: const NotificationParams(
+      showNotification: true,
+      isShowCallback: true,
+      subtitle: 'Missed call',
+
+    ),
+    // extra: <String, dynamic>{'userId': '1a2b3c4d'},
+    // headers: <String, dynamic>{'apiKey': 'Abc@123!', 'platform': 'flutter'},
+    android: const AndroidParams(
+      isCustomNotification: true,
+      isShowLogo: false,
+      ringtonePath: 'system_ringtone_default',
+      backgroundColor: '#0955fa',
+      backgroundUrl: 'assets/test.png',
+      actionColor: '#4CAF50',
+    ),
+    ios: const IOSParams(
+      iconName: 'CallKitLogo',
+      handleType: '',
+      supportsVideo: true,
+      maximumCallGroups: 2,
+      maximumCallsPerCallGroup: 1,
+      audioSessionMode: 'default',
+      audioSessionActive: true,
+      audioSessionPreferredSampleRate: 44100.0,
+      audioSessionPreferredIOBufferDuration: 0.005,
+      supportsDTMF: true,
+      supportsHolding: true,
+      supportsGrouping: false,
+      supportsUngrouping: false,
+      ringtonePath: 'system_ringtone_default',
+    ),
   );
+  await FlutterCallkitIncoming.showCallkitIncoming(params);
 }
 
-/*Future _showNotificationWithDefaultSound(flip) async {
-    print("show notification");
-  // Show a notification after every 15 minute with the first
-  // appearance happening a minute after invoking the method
-  var androidPlatformChannelSpecifics = new AndroidNotificationDetails(
-      'pushnotification',
-      'pushnotification',
-       importance: Importance.max,
-      priority: Priority.high
-  );
-  var iOSPlatformChannelSpecifics = new DarwinNotificationDetails();
-
-  // initialise channel platform for both Android and iOS device.
-  var platformChannelSpecifics = new NotificationDetails(
-      android: androidPlatformChannelSpecifics,
-      iOS: iOSPlatformChannelSpecifics
-  );
-  await flip.show(0,  "is Calling",
-      'Your are one step away to connect with GeeksforGeeks',
-      platformChannelSpecifics, payload: 'Default_Sound'
-  );
-}
-*/
